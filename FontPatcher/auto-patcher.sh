@@ -11,11 +11,16 @@ if [ ! -d "$in_dir" ]; then
     exit 1
 fi
 
+echo "Installing dependencies for Ubuntu..."
+sudo apt update
+sudo apt install python3
+sudo apt install fontforge python3-fontforge
+
 out_dir="$in_dir/nerd-font"
 
 mkdir -p "$out_dir"
 
-for file in "$in_dir"/*.ttf; do
+for file in "$in_dir"/*; do
     if [ -e "$file" ]; then
         echo "Patching: $file"
         fontforge -script ./font-patcher "$file" --outputdir "$out_dir/" --complete
