@@ -1,0 +1,93 @@
+name: Build and Release Font
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - "private-build-plans.toml"
+      - ".github/workflows/**"
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      # Checkout your repository to get the config file
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # Checkout the official Iosevka repository to get the build tools
+      - name: Checkout Iosevka source
+        uses: actions/checkout@v4
+        with:
+          repository: be5invis/Iosevka
+          path: iosevka-src
+          fetch-depth: 1
+
+      # Install system dependencies required by Iosevka
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ttfautohint python3
+
+      # Set up Node.js, which is required by the Iosevka build scripts
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      # Copy your custom build plan into the Iosevka source directory
+      - name: Copy custom build plan
+        run: cp private-build-plans.toml iosevka-src/
+
+      # Install dependencies and build ALL font formats
+      - name: Install dependencies and build all font formats
+        run: |
+          cd iosevka-src
+          npm install
+          npm run build -- contents::BuddyMono
+
+      # Verify build output exists for all formats
+      - name: Verify build output
+        run: |
+          if [ ! -d "iosevka-src/dist/BuddyMono/TTF" ] || [ ! -d "iosevka-src/dist/BuddyMono/WOFF2" ]; then
+            echo "Build output directories (TTF and/or WOFF2) not found!"
+            exit 1
+          fi
+          echo "TTF and WOFF2 build directories verified."
+
+      # Create separate ZIP archives for Desktop and Web users
+      - name: Package font files into separate archives
+        run: |
+          cd iosevka-src/dist/BuddyMono
+
+          zip -r ../../../BuddyMono-TTF.zip TTF
+          zip -r ../../../BuddyMono-Web.zip WOFF2 WOFF2-Unhinted
+
+      # Set the release version number
+      - name: Set Release Version
+        id: vars
+        run: echo "tag=$(date +'%Y.%m.%d')-${{ github.run_number }}" >> $GITHUB_OUTPUT
+
+      # Create a new GitHub Release and upload all three ZIP files
+      - name: Create Release and Upload Assets
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ steps.vars.outputs.tag }}
+          name: "Release ${{ steps.vars.outputs.tag }}"
+          body: |
+            Automated build triggered by commit ${{ github.sha }}.
+
+            **For Desktop Users:**
+            - `BuddyMono-TTF.zip`: Fonts with hinting. Best for most users on standard-resolution screens.
+
+            **For Web Developers:**
+            - `BuddyMono-Web.zip`: Contains all WOFF2 font files for web use (Hinted and Unhinted).
+          files: |
+            BuddyMono-TTF.zip
+            BuddyMono-Web.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
