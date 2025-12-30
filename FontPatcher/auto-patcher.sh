@@ -25,7 +25,6 @@ for file in "$in_dir"/*; do
         echo "Patching: $file"
         fontforge -script ./font-patcher "$file" --outputdir "$out_dir/" --complete
     else
-        echo "No .ttf files"
         rm -rf "$out_dir"
         break
     fi
